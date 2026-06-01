@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detecção de Fraudes — Transações Financeiras</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+  header { background: linear-gradient(135deg, #1a1f2e, #16213e); padding: 2rem 2.5rem; border-bottom: 3px solid #e53e3e; }
+  header h1 { font-size: 1.9rem; color: #fff; letter-spacing: -0.5px; }
+  header p { color: #a0aec0; margin-top: 0.4rem; font-size: 0.88rem; }
+  .stats { display: flex; gap: 1rem; padding: 1.5rem 2.5rem; flex-wrap: wrap; }
+  .card { background: #1a1f2e; border-radius: 10px; padding: 1.2rem 1.8rem; flex: 1; min-width: 140px; border-left: 4px solid; }
+  .card.total { border-color: #4a90d9; } .card.fraude { border-color: #e53e3e; }
+  .card.alto { border-color: #fc4444; } .card.medio { border-color: #f6ad55; }
+  .card .num { font-size: 2.2rem; font-weight: bold; line-height: 1; }
+  .card .label { color: #a0aec0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 0.3rem; }
+  .chart-section { background: #1a1f2e; margin: 0 2.5rem 1.5rem; border-radius: 12px; padding: 2rem; display: flex; flex-direction: column; align-items: center; }
+  .chart-section h2 { margin-bottom: 1.5rem; font-size: 1.1rem; color: #e2e8f0; align-self: flex-start; }
+  #pizza { max-height: 360px; max-width: 600px; }
+  .table-section { margin: 0 2.5rem 3rem; }
+  .table-section h2 { margin-bottom: 1rem; font-size: 1.1rem; }
+  .filter-bar { margin-bottom: 0.8rem; display: flex; gap: 0.8rem; flex-wrap: wrap; }
+  input[type=text] { background: #1a1f2e; border: 1px solid #2d3748; color: #e2e8f0; padding: 0.5rem 1rem; border-radius: 6px; flex: 1; min-width: 200px; outline: none; }
+  select { background: #1a1f2e; border: 1px solid #2d3748; color: #e2e8f0; padding: 0.5rem 1rem; border-radius: 6px; outline: none; cursor: pointer; }
+  .table-wrapper { overflow-x: auto; border-radius: 10px; border: 1px solid #2d3748; }
+  table { width: 100%; border-collapse: collapse; background: #1a1f2e; font-size: 0.82rem; }
+  th { background: #0d1320; padding: 0.75rem 0.8rem; text-align: left; color: #718096; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1px; }
+  td { padding: 0.7rem 0.8rem; border-bottom: 1px solid #1e2a3a; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1e2a3a; }
+  .badge { padding: 0.2rem 0.65rem; border-radius: 20px; font-size: 0.72rem; font-weight: bold; white-space: nowrap; }
+  .badge.alto { background: #63171b; color: #fc8181; border: 1px solid #fc8181; }
+  .badge.medio { background: #5c340a; color: #f6ad55; border: 1px solid #f6ad55; }
+  .motivos { font-size: 0.77rem; color: #a0aec0; line-height: 1.7; max-width: 350px; }
+  .motivos b { color: #76e4f7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔍 Sistema de Detecção de Fraudes Financeiras</h1>
+  <p>Análise de 500 transações — Período: 01/04/2026 a 25/05/2026 | Fraudes detectadas (risco ≥ 31%): <strong style="color:#fc8181">35</strong></p>
+</header>
+
+<div class="stats">
+  <div class="card total"><div class="num">500</div><div class="label">Transações analisadas</div></div>
+  <div class="card fraude"><div class="num">35</div><div class="label">Fraudes detectadas</div></div>
+  <div class="card alto"><div class="num">5</div><div class="label">Risco Alto (&gt;60%)</div></div>
+  <div class="card medio"><div class="num">30</div><div class="label">Risco Médio (31–60%)</div></div>
+</div>
+
+<div class="chart-section">
+  <h2>Tipos de Fraude Detectados</h2>
+  <canvas id="pizza"></canvas>
+</div>
+
+<div class="table-section">
+  <h2>Operações Fraudulentas</h2>
+  <div class="filter-bar">
+    <input type="text" id="filtro" onkeyup="filtrar()" placeholder="Buscar por ID, nome, tipo...">
+    <select id="filtroNivel" onchange="filtrar()">
+      <option value="">Todos os níveis</option>
+      <option value="ALTO">ALTO</option>
+      <option value="MÉDIO">MÉDIO</option>
+    </select>
+  </div>
+  <div class="table-wrapper">
+    <table id="tb">
+      <thead>
+        <tr>
+          <th>ID</th><th>Data / Hora</th><th>Tipo</th><th>Origem</th><th>Destino</th>
+          <th>Valor</th><th>Risco</th><th>Nível</th><th>Motivos</th>
+        </tr>
+      </thead>
+      <tbody>
+    <tr>
+        <td>TRX00486</td>
+        <td>2026-04-01 02:32:39</td>
+        <td>CARTAO CREDITO DIGITAL MASTER</td>
+        <td>Servicos GAMA SA</td>
+        <td>MARKETPLACE OFFSHORE</td>
+        <td>R$ 8,853.91</td>
+        <td><b>65%</b></td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 02h (madrugada)<br>• <b>Destinatário offshore</b>: Destino: 'MARKETPLACE OFFSHORE' — entidade de alto risco</td>
+    </tr>
+    <tr>
+        <td>TRX00484</td>
+        <td>2026-04-02 02:16:15</td>
+        <td>CARTAO CREDITO DIGITAL MASTER</td>
+        <td>Marcelo Vieira</td>
+        <td>ECOMMERCE GLOBAL</td>
+        <td>R$ 4,902.65</td>
+        <td><b>65%</b></td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 02h (madrugada)<br>• <b>Destinatário offshore</b>: Destino: 'ECOMMERCE GLOBAL' — entidade de alto risco</td>
+    </tr>
+    <tr>
+        <td>TRX00480</td>
+        <td>2026-04-27 02:28:30</td>
+        <td>CARTAO CREDITO DIGITAL VISA</td>
+        <td>Comercio BETA ME</td>
+        <td>MARKETPLACE OFFSHORE</td>
+        <td>R$ 3,627.61</td>
+        <td><b>65%</b></td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 02h (madrugada)<br>• <b>Destinatário offshore</b>: Destino: 'MARKETPLACE OFFSHORE' — entidade de alto risco</td>
+    </tr>
+    <tr>
+        <td>TRX00487</td>
+        <td>2026-04-30 01:05:20</td>
+        <td>CARTAO CREDITO DIGITAL MASTER</td>
+        <td>Thiago Rocha</td>
+        <td>ECOMMERCE GLOBAL</td>
+        <td>R$ 4,192.64</td>
+        <td><b>65%</b></td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 01h (madrugada)<br>• <b>Destinatário offshore</b>: Destino: 'ECOMMERCE GLOBAL' — entidade de alto risco</td>
+    </tr>
+    <tr>
+        <td>TRX00488</td>
+        <td>2026-05-24 02:33:20</td>
+        <td>CARTAO CREDITO DIGITAL MASTER</td>
+        <td>Bianca Cavalcanti</td>
+        <td>ECOMMERCE GLOBAL</td>
+        <td>R$ 4,551.03</td>
+        <td><b>65%</b></td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 02h (madrugada)<br>• <b>Destinatário offshore</b>: Destino: 'ECOMMERCE GLOBAL' — entidade de alto risco</td>
+    </tr>
+    <tr>
+        <td>TRX00453</td>
+        <td>2026-04-26 20:14:39</td>
+        <td>PIX</td>
+        <td>Amanda Dias</td>
+        <td>Sabrina Andrade</td>
+        <td>R$ 100,000.00</td>
+        <td><b>50%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Valor atípico elevado</b>: R$ 100,000.00 — acima de R$ 50.000<br>• <b>Banco de risco</b>: Banco destino 380 — vinculado a operações suspeitas</td>
+    </tr>
+    <tr>
+        <td>TRX00490</td>
+        <td>2026-05-24 00:54:46</td>
+        <td>PIX</td>
+        <td>Vanessa Marques</td>
+        <td>Tatiane Reis</td>
+        <td>R$ 31,272.62</td>
+        <td><b>50%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 00h (madrugada)<br>• <b>Valor alto</b>: R$ 31,272.62 — acima de R$ 20.000<br>• <b>Banco de risco</b>: Banco destino 380 — vinculado a operações suspeitas</td>
+    </tr>
+    <tr>
+        <td>TRX00471</td>
+        <td>2026-04-20 05:43:55</td>
+        <td>PIX</td>
+        <td>Pedro Santos</td>
+        <td>Industria DELTA SA</td>
+        <td>R$ 4,098.48</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00472</td>
+        <td>2026-04-20 05:44:00</td>
+        <td>PIX</td>
+        <td>Pedro Santos</td>
+        <td>Industria DELTA SA</td>
+        <td>R$ 4,098.48</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00473</td>
+        <td>2026-04-20 05:45:05</td>
+        <td>PIX</td>
+        <td>Pedro Santos</td>
+        <td>Industria DELTA SA</td>
+        <td>R$ 4,098.48</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00467</td>
+        <td>2026-05-02 05:44:20</td>
+        <td>PIX</td>
+        <td>Lucas Rodrigues</td>
+        <td>Bianca Cavalcanti</td>
+        <td>R$ 11,538.40</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00468</td>
+        <td>2026-05-02 05:45:43</td>
+        <td>PIX</td>
+        <td>Lucas Rodrigues</td>
+        <td>Bianca Cavalcanti</td>
+        <td>R$ 11,538.40</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00469</td>
+        <td>2026-05-02 05:46:23</td>
+        <td>PIX</td>
+        <td>Lucas Rodrigues</td>
+        <td>Bianca Cavalcanti</td>
+        <td>R$ 11,538.40</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00459</td>
+        <td>2026-05-06 04:41:46</td>
+        <td>PIX</td>
+        <td>Bruno Carvalho</td>
+        <td>Larissa Cardoso</td>
+        <td>R$ 10,672.69</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00460</td>
+        <td>2026-05-06 04:42:55</td>
+        <td>PIX</td>
+        <td>Bruno Carvalho</td>
+        <td>Larissa Cardoso</td>
+        <td>R$ 10,672.69</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00461</td>
+        <td>2026-05-06 04:43:19</td>
+        <td>PIX</td>
+        <td>Bruno Carvalho</td>
+        <td>Larissa Cardoso</td>
+        <td>R$ 10,672.69</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00475</td>
+        <td>2026-05-18 06:21:56</td>
+        <td>PIX</td>
+        <td>Comercio BETA ME</td>
+        <td>Mariana Costa</td>
+        <td>R$ 9,456.47</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00476</td>
+        <td>2026-05-18 06:22:32</td>
+        <td>PIX</td>
+        <td>Comercio BETA ME</td>
+        <td>Mariana Costa</td>
+        <td>R$ 9,456.47</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00477</td>
+        <td>2026-05-18 06:23:38</td>
+        <td>PIX</td>
+        <td>Comercio BETA ME</td>
+        <td>Mariana Costa</td>
+        <td>R$ 9,456.47</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00463</td>
+        <td>2026-05-20 05:31:15</td>
+        <td>PIX</td>
+        <td>Rafael Ferreira</td>
+        <td>Juliana Almeida</td>
+        <td>R$ 10,961.08</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00464</td>
+        <td>2026-05-20 05:32:21</td>
+        <td>PIX</td>
+        <td>Rafael Ferreira</td>
+        <td>Juliana Almeida</td>
+        <td>R$ 10,961.08</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00465</td>
+        <td>2026-05-20 05:33:51</td>
+        <td>PIX</td>
+        <td>Rafael Ferreira</td>
+        <td>Juliana Almeida</td>
+        <td>R$ 10,961.08</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Transação com falha</b>: Status FALHA — possível tentativa de fraude bloqueada<br>• <b>Tentativas repetidas</b>: 3 transação(ões) idêntica(s) em ≤5 minutos (possível teste de cartão)</td>
+    </tr>
+    <tr>
+        <td>TRX00479</td>
+        <td>2026-05-21 05:08:00</td>
+        <td>CARTAO CREDITO DIGITAL MASTER</td>
+        <td>Comercio BETA ME</td>
+        <td>ECOMMERCE GLOBAL</td>
+        <td>R$ 6,583.93</td>
+        <td><b>45%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Destinatário offshore</b>: Destino: 'ECOMMERCE GLOBAL' — entidade de alto risco</td>
+    </tr>
+    <tr>
+        <td>TRX00406</td>
+        <td>2026-04-08 15:29:26</td>
+        <td>DOC</td>
+        <td>Larissa Cardoso</td>
+        <td>Rafael Ferreira</td>
+        <td>R$ 11,417.08</td>
+        <td><b>40%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Dados incompletos</b>: Campos ausentes: localização<br>• <b>Banco de risco</b>: Banco destino 380 — vinculado a operações suspeitas</td>
+    </tr>
+    <tr>
+        <td>TRX00407</td>
+        <td>2026-05-08 15:53:29</td>
+        <td>PAGAMENTO BOLETO</td>
+        <td>Vanessa Marques</td>
+        <td>Camila Ribeiro</td>
+        <td>R$ 266.83</td>
+        <td><b>40%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Dados incompletos</b>: Campos ausentes: localização<br>• <b>Banco de risco</b>: Banco destino 380 — vinculado a operações suspeitas</td>
+    </tr>
+    <tr>
+        <td>TRX00454</td>
+        <td>2026-04-14 13:50:04</td>
+        <td>PIX</td>
+        <td>Gustavo Freitas</td>
+        <td>Bianca Cavalcanti</td>
+        <td>R$ 100,000.00</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Valor atípico elevado</b>: R$ 100,000.00 — acima de R$ 50.000</td>
+    </tr>
+    <tr>
+        <td>TRX00146</td>
+        <td>2026-04-18 19:25:05</td>
+        <td>SAQUE</td>
+        <td>Thiago Rocha</td>
+        <td>Carolina Mendes</td>
+        <td>R$ 2,398.86</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Banco de risco</b>: Banco destino 380 — vinculado a operações suspeitas<br>• <b>Descrição inconsistente com tipo</b>: SAQUE descrito como 'Pagamento conta agua'</td>
+    </tr>
+    <tr>
+        <td>TRX00340</td>
+        <td>2026-04-21 02:57:24</td>
+        <td>TED</td>
+        <td>Mariana Costa</td>
+        <td>Rodrigo Teixeira</td>
+        <td>R$ 27,774.31</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 02h (madrugada)<br>• <b>Valor alto</b>: R$ 27,774.31 — acima de R$ 20.000</td>
+    </tr>
+    <tr>
+        <td>TRX00347</td>
+        <td>2026-04-22 03:46:55</td>
+        <td>PIX</td>
+        <td>Beatriz Lima</td>
+        <td>Camila Ribeiro</td>
+        <td>R$ 42,529.82</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 03h (madrugada)<br>• <b>Valor alto</b>: R$ 42,529.82 — acima de R$ 20.000</td>
+    </tr>
+    <tr>
+        <td>TRX00252</td>
+        <td>2026-04-23 11:42:21</td>
+        <td>SAQUE</td>
+        <td>Renata Correia</td>
+        <td>Mariana Costa</td>
+        <td>R$ 911.58</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Banco de risco</b>: Banco destino 380 — vinculado a operações suspeitas<br>• <b>Descrição inconsistente com tipo</b>: SAQUE descrito como 'Compra eletronicos'</td>
+    </tr>
+    <tr>
+        <td>TRX00354</td>
+        <td>2026-04-28 03:36:50</td>
+        <td>PIX</td>
+        <td>Camila Ribeiro</td>
+        <td>Ricardo Nunes</td>
+        <td>R$ 35,829.71</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 03h (madrugada)<br>• <b>Valor alto</b>: R$ 35,829.71 — acima de R$ 20.000</td>
+    </tr>
+    <tr>
+        <td>TRX00336</td>
+        <td>2026-05-10 01:24:35</td>
+        <td>TED</td>
+        <td>Felipe Castro</td>
+        <td>Priscila Monteiro</td>
+        <td>R$ 31,750.65</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 01h (madrugada)<br>• <b>Valor alto</b>: R$ 31,750.65 — acima de R$ 20.000</td>
+    </tr>
+    <tr>
+        <td>TRX00378</td>
+        <td>2026-05-13 03:11:41</td>
+        <td>PIX</td>
+        <td>Juliana Almeida</td>
+        <td>Eduardo Cunha</td>
+        <td>R$ 1,868.66</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 03h (madrugada)<br>• <b>Banco de risco</b>: Banco destino 380 — vinculado a operações suspeitas</td>
+    </tr>
+    <tr>
+        <td>TRX00391</td>
+        <td>2026-05-18 03:06:10</td>
+        <td>PIX</td>
+        <td>Tatiane Reis</td>
+        <td>Ricardo Nunes</td>
+        <td>R$ 1,717.46</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 03h (madrugada)<br>• <b>Banco de risco</b>: Banco destino 380 — vinculado a operações suspeitas</td>
+    </tr>
+    <tr>
+        <td>TRX00493</td>
+        <td>2026-05-23 02:46:46</td>
+        <td>PIX</td>
+        <td>Pedro Santos</td>
+        <td>Servicos GAMA SA</td>
+        <td>R$ 32,392.59</td>
+        <td><b>35%</b></td>
+        <td><span class="badge medio">MÉDIO</span></td>
+        <td class="motivos">• <b>Horário suspeito</b>: Transação às 02h (madrugada)<br>• <b>Valor alto</b>: R$ 32,392.59 — acima de R$ 20.000</td>
+    </tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+new Chart(document.getElementById('pizza').getContext('2d'), {
+  type: 'pie',
+  data: {
+    labels: ["Horário suspeito", "Destinatário offshore", "Dados incompletos", "Banco de risco", "Valor atípico elevado", "Descrição inconsistente com tipo", "Transação com falha", "Tentativas repetidas", "Valor alto"],
+    datasets: [{
+      data: [13, 6, 2, 8, 2, 2, 15, 15, 6],
+      backgroundColor: ['#e53e3e','#f6ad55','#4a90d9','#68d391','#b794f4','#76e4f7','#fc8181','#fbb6ce','#9ae6b4'],
+      borderColor: '#0f1117',
+      borderWidth: 3
+    }]
+  },
+  options: {
+    plugins: {
+      legend: { labels: { color: '#e2e8f0', padding: 14, font: { size: 13 } } },
+      tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw} ocorrências` } }
+    }
+  }
+});
+
+function filtrar() {
+  const txt = document.getElementById('filtro').value.toLowerCase();
+  const nv  = document.getElementById('filtroNivel').value;
+  document.querySelectorAll('#tb tbody tr').forEach(tr => {
+    const ok = tr.textContent.toLowerCase().includes(txt) &&
+               (!nv || tr.querySelector('.badge').textContent.trim() === nv);
+    tr.style.display = ok ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>
