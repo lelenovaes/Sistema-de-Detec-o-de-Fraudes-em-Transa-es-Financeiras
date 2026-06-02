@@ -3,6 +3,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 
+#Define qual arquivo será analisado.
 ARQUIVO_LOG = "logs_transacoes.txt"
 
 # Extrai o valor de um campo específico da linha do log 
